@@ -3654,7 +3654,9 @@ impl Build {
 
     fn apple_sdk_root(&self, sdk: &str) -> Result<OsString, Error> {
         if let Some(sdkroot) = env::var_os("SDKROOT") {
-            return Ok(sdkroot);
+            if apple_sdk_root_matches_sdk(sdk, &sdkroot) {
+                return Ok(sdkroot);
+            }
         }
 
         let mut cache = self
@@ -4076,4 +4078,81 @@ impl AsmFileExt {
         }
         None
     }
+}
+
+fn apple_sdk_root_matches_sdk(sdk: &str, sdkroot: &OsStr) -> bool {
+    // Adapted from rustc's compiler/rustc_codegen_ssa/src/back/link.rs.
+    let p = Path::new(&sdkroot);
+    if !p.is_absolute() || p == Path::new("/") || !p.exists() {
+        return false;
+    }
+    for c in p.components() {
+        if let Component::Normal(c) = c {
+            match sdk {
+                "appletvos"
+                    if c == OsString::from("TVSimulator.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "appletvsimulator"
+                    if c == OsString::from("TVOS.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "iphoneos"
+                    if c == OsString::from("iPhoneSimulator.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "iphonesimulator"
+                    if c == OsString::from("iPhoneOS.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "macosx10.15"
+                    if c == OsString::from("iPhoneOS.platform")
+                        || c == OsString::from("iPhoneSimulator.platform") =>
+                {
+                    return false
+                }
+                "watchos"
+                    if c == OsString::from("WatchSimulator.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "watchsimulator"
+                    if c == OsString::from("WatchOS.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "xros"
+                    if c == OsString::from("XRSimulator.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                "xrsimulator"
+                    if c == OsString::from("XROS.platform")
+                        || c == OsString::from("MacOSX.platform") =>
+                {
+                    return false
+                }
+                _ => {}
+            }
+        }
+    }
+    true
+}
+
+#[test]
+fn test_apple_sdk_root_matches_sdk() {
+    assert!(apple_sdk_root_matches_sdk("macos", &OsString::from("/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk")));
+    assert!(!apple_sdk_root_matches_sdk("watchos", &OsString::from("/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.2.sdk")));
+    assert!(apple_sdk_root_matches_sdk("iphoneos", &OsString::from("/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.2.sdk")));
 }
